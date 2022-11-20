@@ -1,0 +1,6 @@
+assets*
+*.log
+*.pyc
+events*
+.vscode
+*.txt
