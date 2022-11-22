@@ -5,6 +5,7 @@ import pandas
 import torch
 import numpy as np
 from lib.utils.logger import logger
+from lib.const import Queries
 
 
 class DRGrading:
@@ -41,12 +42,18 @@ class DRGrading:
             logger.error("Unknown mode, 'use_full_loading', 'small_data' allowed.")
 
         logger.info('Dataset successfully loaded!')
+    
+    def set_device(self, device):
+        self.device = device
 
     def __len__(self):
         return len(self.labels)
 
     def __getitem__(self, idx):
-        return {'img': torch.from_numpy(self.imgs[idx]).to(torch.float32).transpose(2, 0), 'label': self.labels[idx]}
+        return {
+            Queries.IMG: torch.from_numpy(self.imgs[idx]).to(torch.float32).transpose(2, 0).to(self.device),
+            Queries.LABEL: torch.tensor(self.labels[idx]).to(self.device)
+        }
 
 
 if __name__ == '__main__':
