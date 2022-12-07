@@ -12,6 +12,8 @@ from yacs.config import CfgNode as CN
 from lib.config import get_config
 from lib.utils.logger import logger
 from torch.nn.utils import clip_grad
+from lib.preprocess.preprocess import Preprocessor
+from lib.const import Queries
 
 
 def clip_gradient(optimizer, max_norm, norm_type):
@@ -28,6 +30,8 @@ def clip_gradient(optimizer, max_norm, norm_type):
 
 
 def main(args, cfg):
+    preprocessor = Preprocessor(cfg).to('cuda:0')
+
     drg_data = DRGrading('assets/images', 'assets/gts', cfg.DATASET.SPLIT, cfg.DATASET.MODE, cfg.DATASET.AMOUNT)
     drg_data.set_device('cuda:0')
     epochs = cfg.TRAIN.EPOCHS
@@ -40,6 +44,7 @@ def main(args, cfg):
         shuffle=True,
         drop_last=False,
     )
+
     model = ResnetModel(cfg)
     if args.resume is not None:
         path = os.path.join(args.resume, "state_dict.pt")
@@ -60,6 +65,7 @@ def main(args, cfg):
     model.to('cuda:0')
     for epoch in range(epochs):
         for step, batch in enumerate(tqdm(dataloader)):
+            batch[Queries.IMG] = preprocessor(batch[Queries.IMG])
             step_idx = step + epoch * len(dataloader)
             optimizer.zero_grad()
             res, loss = model(batch, step_idx, 'train')
@@ -68,8 +74,8 @@ def main(args, cfg):
                 clip_gradient(optimizer, cfg.TRAIN.GRAD_CLIP.NORM, cfg.TRAIN.GRAD_CLIP.TYPE)
             optimizer.step()
         scheduler.step()
-            
 
+    summary.close()
     model_path = os.path.join(exp_dir, 'state_dict.pt')
     cfg_path = os.path.join(exp_dir, "dump_cfg.yml")
     with open(cfg_path, 'w') as f:
@@ -79,7 +85,7 @@ def main(args, cfg):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='DRG trainer')
-    parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--batch_size", type=int, default=None)
     parser.add_argument("--cfg", type=str)
     parser.add_argument("--resume", type=str, default=None)
     parser.add_argument("--reload", type=str, default=None)

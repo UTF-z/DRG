@@ -12,7 +12,13 @@ class ResnetModel(nn.Module):
         super(ResnetModel, self).__init__()
         self.num_residuals = cfg.MODEL.NUM_RESIDUALS
         self.classes = cfg.MODEL.CLASSES
-        self.resnet = ResNet(BasicBlock, self.num_residuals, self.classes, include_top=True)
+        self.preprocessor = None
+        self.summary = None
+        self.resnet = ResNet(BasicBlock,
+                             self.num_residuals,
+                             self.classes,
+                             include_top=True,
+                             input_channel=len(cfg.PREPROCESS.TYPES) + 1)
 
     def setup(self, summary):
         self.summary = summary
@@ -33,7 +39,7 @@ class ResnetModel(nn.Module):
         resnet_loss = self.compute_loss(resnet_res, labels)
         with torch.no_grad():
             acc = self.compute_acc(resnet_res, labels)
-            acc /= imgs.shape[0]
+            acc = acc / float(imgs.shape[0])
         self.summary.add_scalar(f"resnet_loss", resnet_loss.item(), step_idx)
         self.summary.add_scalar(f"acc", acc.item(), step_idx)
         return resnet_res, resnet_loss

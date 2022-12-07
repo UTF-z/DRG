@@ -11,9 +11,12 @@ from yacs.config import CfgNode as CN
 from lib.config import get_config
 from lib.utils.logger import logger
 from torch.nn.utils import clip_grad
+from lib.preprocess.preprocess import Preprocessor
+from lib.const import Queries
 
 
 def main(args, cfg):
+    preprocessor = Preprocessor(cfg).to('cuda:0')
     drg_data = DRGrading('assets/images', 'assets/gts', cfg.DATASET.SPLIT, cfg.DATASET.MODE, cfg.DATASET.AMOUNT)
     drg_data.set_device('cuda:0')
     epochs = cfg.TRAIN.EPOCHS
@@ -25,11 +28,13 @@ def main(args, cfg):
         shuffle=False,
         drop_last=False,
     )
+    if args.load is None:
+        print("'--load' should be provided.")
+        return
     model = ResnetModel(cfg)
-    if args.load is not None:
-        path = os.path.join(args.load, "state_dict.pt")
-        state_dict = torch.load(path)
-        model.load_state_dict(state_dict)
+    path = os.path.join(args.load, "state_dict.pt")
+    state_dict = torch.load(path)
+    model.load_state_dict(state_dict)
     logger.info(f"the model has {sum(p.numel() for p in model.parameters()) * 4 / (1024 * 1024)} M params")
     model.eval()
     model.to('cuda:0')
@@ -39,6 +44,7 @@ def main(args, cfg):
     with torch.no_grad():
         for batch in tqdm(dataloader):
             steps += 1
+            batch[Queries.IMG] = preprocessor(batch[Queries.IMG])
             res, loss, acc = model(batch, steps, 'val')
             total_loss += loss
             total_acc += acc

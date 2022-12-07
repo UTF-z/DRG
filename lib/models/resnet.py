@@ -69,32 +69,26 @@ class ResNet(nn.Module):
     """搭建ResNet-layer通用框架"""
 
     # num_classes是训练集的分类个数，include_top是在ResNet的基础上搭建更加复杂的网络时用到，此处用不到
-    def __init__(self, residual, num_residuals, num_classes=1000, include_top=True):
+    def __init__(self, residual, num_residuals, num_classes=1000, include_top=True, input_channel=3):
         super(ResNet, self).__init__()
 
         self.out_channel = 64  # 输出通道数(即卷积核个数)，会生成与设定的输出通道数相同的卷积核个数
         self.include_top = include_top
 
-        self.prev_conv1 = nn.Conv2d(3, 3, kernel_size=7, stride=2, padding=3, bias=False)
-        self.prev_conv2 = nn.Conv2d(3, 3, kernel_size=7, stride=2, padding=3, bias=False)
-        self.prev_bn1 = nn.BatchNorm2d(3)
-        self.prev_bn2 = nn.BatchNorm2d(3)
-        # [256, 256, 3]
-        self.conv1 = nn.Conv2d(3, self.out_channel, kernel_size=7, stride=2, padding=3,
-                               bias=False)  # 3表示输入特征图像的RGB通道数为3，即图片数据的输入通道为3
+        self.prev_conv1 = nn.Conv2d(input_channel, input_channel, kernel_size=7, stride=2, padding=3, bias=False)
+        self.prev_conv2 = nn.Conv2d(input_channel, input_channel, kernel_size=7, stride=2, padding=3, bias=False)
+        self.prev_bn1 = nn.BatchNorm2d(input_channel)
+        self.prev_bn2 = nn.BatchNorm2d(input_channel)
+        # [b, input_channel, 256, 256]
+        self.conv1 = nn.Conv2d(input_channel, self.out_channel, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(self.out_channel)
         self.relu = nn.ReLU(inplace=True)
-        # [512, 512, 64]
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)  #[b, 64, 64, 64]
 
-        # [256, 256, 64]
-        self.conv2 = self.residual_block(residual, 64, num_residuals[0])
-        # [128, 128, 128]
-        self.conv3 = self.residual_block(residual, 128, num_residuals[1], stride=2)
-        # [64, 64, 256]
-        self.conv4 = self.residual_block(residual, 256, num_residuals[2], stride=2)
-        # [32, 32, 512]
-        self.conv5 = self.residual_block(residual, 512, num_residuals[3], stride=2)
+        self.conv2 = self.residual_block(residual, 64, num_residuals[0]) #[b, 64, 64, 64]
+        self.conv3 = self.residual_block(residual, 128, num_residuals[1], stride=2) #[b, 128, 32, 32]
+        self.conv4 = self.residual_block(residual, 256, num_residuals[2], stride=2) #[b, 256, 16, 16]
+        self.conv5 = self.residual_block(residual, 512, num_residuals[3], stride=2) #[b, 512, 8, 8]
         if self.include_top:
             self.avgpool = nn.AdaptiveAvgPool2d((1, 1))  # output_size = (1, 1)
             self.fc = nn.Linear(512 * residual.expansion, num_classes)
@@ -132,8 +126,8 @@ class ResNet(nn.Module):
     # 前向传播
     def forward(self, X):
         Y = self.relu(self.prev_bn1(self.prev_conv1(X)))
-        Y = self.relu(self.prev_bn2(self.prev_conv2(X)))
-        Y = self.relu(self.bn1(self.conv1(X)))
+        Y = self.relu(self.prev_bn2(self.prev_conv2(Y)))
+        Y = self.relu(self.bn1(self.conv1(Y)))
         Y = self.maxpool(Y)
         Y = self.conv5(self.conv4(self.conv3(self.conv2(Y))))
 
