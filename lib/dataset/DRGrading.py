@@ -6,9 +6,10 @@ import torch
 import numpy as np
 from lib.utils.logger import logger
 from lib.const import Queries
+from torch.utils.data import Dataset
 
 
-class DRGrading:
+class DRGrading(Dataset):
 
     def __init__(self, img_dir, gt_dir, split, mode='use_full_loading', amount=100):
         self.imgs = []

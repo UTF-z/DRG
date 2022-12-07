@@ -33,7 +33,7 @@ class ResnetModel(nn.Module):
         resnet_loss = self.compute_loss(resnet_res, labels)
         with torch.no_grad():
             acc = self.compute_acc(resnet_res, labels)
-            acc /= imgs.shape[0]
+            acc = acc / float(imgs.shape[0])
         self.summary.add_scalar(f"resnet_loss", resnet_loss.item(), step_idx)
         self.summary.add_scalar(f"acc", acc.item(), step_idx)
         return resnet_res, resnet_loss

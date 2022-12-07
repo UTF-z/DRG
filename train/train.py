@@ -68,8 +68,8 @@ def main(args, cfg):
                 clip_gradient(optimizer, cfg.TRAIN.GRAD_CLIP.NORM, cfg.TRAIN.GRAD_CLIP.TYPE)
             optimizer.step()
         scheduler.step()
-            
 
+    summary.close()
     model_path = os.path.join(exp_dir, 'state_dict.pt')
     cfg_path = os.path.join(exp_dir, "dump_cfg.yml")
     with open(cfg_path, 'w') as f:
