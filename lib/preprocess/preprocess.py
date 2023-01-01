@@ -105,10 +105,10 @@ class EQH:
         return cv2.imwrite(path, img)
 
 
-class Preprocessor(nn.Module):
+class _Preprocessor(nn.Module):
 
     def __init__(self, cfg):
-        super(Preprocessor, self).__init__()
+        super(_Preprocessor, self).__init__()
         preprocess_types = cfg.PREPROCESS.TYPES
         self.sub_preprocessor = nn.ModuleList()
         if "lpf" in preprocess_types:
@@ -127,6 +127,15 @@ class Preprocessor(nn.Module):
             preprocessed_imgs.append(preprocess.forward(img).to(torch.float32) / 255)
         result = torch.cat(preprocessed_imgs, dim=1)
         return result
+
+
+class Preprocessor(nn.Module):
+
+    def __init__(self, cfg):
+        super(Preprocessor, self).__init__()
+
+    def forward(self, img):
+        return img
 
 
 if __name__ == "__main__":

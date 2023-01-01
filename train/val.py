@@ -16,9 +16,10 @@ from lib.const import Queries
 
 
 def main(args, cfg):
-    preprocessor = Preprocessor(cfg).to('cuda:0')
+    device = 'cuda:0'
+    preprocessor = Preprocessor(cfg).to(device)
     drg_data = DRGrading('assets/images', 'assets/gts', cfg.DATASET.SPLIT, cfg.DATASET.MODE, cfg.DATASET.AMOUNT)
-    drg_data.set_device('cuda:0')
+    drg_data.set_device(device)
     epochs = cfg.TRAIN.EPOCHS
     batch_size = cfg.TRAIN.BATCH_SIZE
 
@@ -32,12 +33,11 @@ def main(args, cfg):
         print("'--load' should be provided.")
         return
     model = ResnetModel(cfg)
-    path = os.path.join(args.load, "state_dict.pt")
-    state_dict = torch.load(path)
-    model.load_state_dict(state_dict)
+    checkpoint = torch.load(args.load)
+    model.load_state_dict(checkpoint['model'])
     logger.info(f"the model has {sum(p.numel() for p in model.parameters()) * 4 / (1024 * 1024)} M params")
     model.eval()
-    model.to('cuda:0')
+    model.to(device)
     total_loss = 0.0
     total_acc = 0
     steps = 0

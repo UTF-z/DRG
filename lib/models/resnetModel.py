@@ -13,15 +13,11 @@ class ResnetModel(nn.Module):
         self.num_residuals = cfg.MODEL.NUM_RESIDUALS
         self.classes = cfg.MODEL.CLASSES
         self.preprocessor = None
-        self.summary = None
         self.resnet = ResNet(BasicBlock,
                              self.num_residuals,
                              self.classes,
                              include_top=True,
                              input_channel=len(cfg.PREPROCESS.TYPES) + 1)
-
-    def setup(self, summary):
-        self.summary = summary
 
     def forward(self, batch, step_idx, mode):
         if mode == "train":
@@ -37,13 +33,10 @@ class ResnetModel(nn.Module):
         labels = batch[Queries.LABEL]
         resnet_res = self.resnet(imgs)
         resnet_loss = self.compute_loss(resnet_res, labels)
-        with torch.no_grad():
-            acc = self.compute_acc(resnet_res, labels)
-            acc = acc / float(imgs.shape[0])
-        self.summary.add_scalar(f"resnet_loss", resnet_loss.item(), step_idx)
-        self.summary.add_scalar(f"acc", acc.item(), step_idx)
-        return resnet_res, resnet_loss
+        acc = self.compute_acc(resnet_res, labels)
+        return resnet_res, resnet_loss, acc
 
+    @torch.no_grad()
     def val_step(self, batch, step_idx):
         imgs = batch[Queries.IMG]
         labels = batch[Queries.LABEL]
@@ -52,6 +45,7 @@ class ResnetModel(nn.Module):
         acc = self.compute_acc(resnet_res, labels)
         return resnet_res, resnet_loss, acc
 
+    @torch.no_grad()
     def test_step(self, batch, step_idx):
         imgs = batch[Queries.IMG]
         labels = batch[Queries.LABEL]
@@ -61,7 +55,9 @@ class ResnetModel(nn.Module):
     def compute_loss(self, res, labels):
         return F.cross_entropy(res, labels)
 
-    def compute_acc(self, resnet_res, labels):
-        _, class_res = torch.max(resnet_res, dim=1)
+    @torch.no_grad()
+    def compute_acc(self, resnet_res, labels) -> torch.Tensor:
+        class_res = torch.argmax(resnet_res, dim=1)
         acc = (class_res == labels).sum()
+        acc = acc.true_divide(len(labels))
         return acc
