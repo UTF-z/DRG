@@ -13,3 +13,6 @@ class ImmutableClass(type):
 class Queries(metaclass=ImmutableClass):
     IMG = 'img'
     LABEL = 'label'
+    RES = 'res'
+    ACC = 'acc'
+    LOSS = 'loss'

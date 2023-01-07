@@ -3,12 +3,56 @@ sys.path.append('.')
 import pickle
 import cv2
 import pandas
-import torch
+import skimage
 import numpy as np
+from tqdm import tqdm
 from lib.utils.logger import logger
 from lib.const import Queries
+from lib.preprocess.ButterworthHighPassFilter import BHF
+from lib.preprocess.HighPassFilter import HPF
 from torch.utils.data import Dataset
 import pickle
+
+def ButterworthHighPassFilter(image, d=20, n=1):
+
+    f = np.fft.fft2(image)
+    fshift = np.fft.fftshift(f)
+
+    s1 = s1 = np.log(np.abs(fshift))
+
+    def make_transform_matrix(d):
+        transform_matrix = np.zeros(image.shape)
+        center_point = tuple(map(lambda x: (x - 1) / 2, s1.shape))
+        for i in range(transform_matrix.shape[0]):
+            for j in range(transform_matrix.shape[1]):
+
+                def cal_distance(pa, pb):
+                    from math import sqrt
+
+                    dis = sqrt((pa[0] - pb[0])**2 + (pa[1] - pb[1])**2)
+                    return dis
+
+                dis = cal_distance(center_point, (i, j))
+                transform_matrix[i, j] = 1 / (1 + (d / dis)**(2 * n))
+        return transform_matrix
+
+    d_matrix = make_transform_matrix(d)
+    new_img = np.abs(np.fft.ifft2(np.fft.ifftshift(fshift * d_matrix)))
+    return new_img
+
+def HistEqualizer(img):
+    img = cv2.equalizeHist(img)
+    return img
+
+def GaussianBlur(img):
+    img = cv2.GaussianBlur(img, (5, 5), 9)
+    return img
+
+def GaussianNoise(img):
+    img = skimage.util.random_noise(img, mode='gaussian')
+    return img
+
+processings = [ButterworthHighPassFilter, HistEqualizer, GaussianBlur, GaussianNoise]
 
 class DataAugmentation:
 
@@ -66,11 +110,28 @@ class DataAugmentation:
         val_img = val_img[perm_val]
         val_label = val_label[perm_val]
         train_data, val_data =  (train_img, train_label), (val_img, val_label)
+        train_data = self.augment(train_data)
         os.makedirs(self.target_dir, exist_ok=True)
         with open(os.path.join(self.target_dir, "train.pkl"), 'wb') as f:
             pickle.dump(train_data, f)
         with open(os.path.join(self.target_dir, "val.pkl"), 'wb') as f:
             pickle.dump(val_data, f)
+    
+    def augment(self, data):
+        imgs = data[0]
+        labels = data[1]
+        for i in tqdm(range(len(imgs))):
+            img, label = imgs[i], labels[i]
+            for proc in processings:
+                img = img.astype(np.uint8)
+                img = proc(img)
+                np.append(imgs, img)
+                np.append(labels, label)
+        random_idx = np.random.permutation(len(imgs))
+        imgs = imgs[random_idx]
+        labels = labels[random_idx]
+        return (imgs, labels)
+
 
 if __name__ == '__main__':
     gt_dir = 'assets/gts'

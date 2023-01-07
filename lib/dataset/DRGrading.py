@@ -13,7 +13,7 @@ from lib.dataset.data_prepare import DataAugmentation
 
 class DRGrading(Dataset):
 
-    def __init__(self, img_dir, gt_dir, split, mode='use_full_loading', amount=100):
+    def __init__(self, img_dir, split):
         self.imgs = []
         if split == 'train':
             data_path = os.path.join(img_dir, 'train.pkl')
@@ -42,10 +42,9 @@ class DRGrading(Dataset):
 
 if __name__ == '__main__':
     img_path = os.path.join('assets', 'DRG_data')
-    gts_path = os.path.join('assets', 'DRG_data')
-    data = DRGrading(img_path, gts_path, 'train')
+    data = DRGrading(img_path, 'train')
     for i in range(5):
         print(data.imgs[i].shape, data.imgs[i].dtype, type(data.imgs[i]), data.labels[i])
         print(data.imgs[i].min(), data.imgs[i].max())
         print("<<<<<<<<<<<<<<<<")
-    print(data.labels)
+    print(len(data))

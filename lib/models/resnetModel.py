@@ -34,7 +34,12 @@ class ResnetModel(nn.Module):
         resnet_res = self.resnet(imgs)
         resnet_loss = self.compute_loss(resnet_res, labels)
         acc = self.compute_acc(resnet_res, labels)
-        return resnet_res, resnet_loss, acc
+        res_dict = {
+            Queries.RES: resnet_res,
+            Queries.LOSS: resnet_loss,
+            Queries.ACC: acc
+        }
+        return res_dict
 
     @torch.no_grad()
     def val_step(self, batch, step_idx):
@@ -43,7 +48,12 @@ class ResnetModel(nn.Module):
         resnet_res = self.resnet(imgs)
         resnet_loss = self.compute_loss(resnet_res, labels)
         acc = self.compute_acc(resnet_res, labels)
-        return resnet_res, resnet_loss, acc
+        res_dict = {
+            Queries.RES: resnet_res,
+            Queries.LOSS: resnet_loss,
+            Queries.ACC: acc
+        }
+        return res_dict
 
     @torch.no_grad()
     def test_step(self, batch, step_idx):

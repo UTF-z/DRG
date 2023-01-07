@@ -34,8 +34,10 @@ def clip_gradient(optimizer, max_norm, norm_type):
 def main(args, cfg):
 
     device = 'cuda:0'
-    drg_data = DRGrading('assets/images', 'assets/gts', cfg.DATASET.SPLIT, cfg.DATASET.MODE, cfg.DATASET.AMOUNT)
-    drg_data.set_device(device)
+    train_data = DRGrading('assets/DRG_data', cfg.DATASET.TRAIN_SPLIT)
+    val_data = DRGrading('assets/DRG_data', cfg.DATASET.VAL_SPLIT)
+    train_data.set_device(device)
+    val_data.set_device(device)
     epochs = cfg.TRAIN.EPOCHS
     batch_size = cfg.TRAIN.BATCH_SIZE
     logger.warning(f"epochs: {epochs}, batch_size: {batch_size}")
@@ -47,10 +49,16 @@ def main(args, cfg):
     with open(cfg_path, 'w') as f:
         f.write(cfg.dump(sort_keys=False))
 
-    dataloader = DataLoader(
-        dataset=drg_data,
+    train_loader = DataLoader(
+        dataset=train_data,
         batch_size=batch_size,
         shuffle=True,
+        drop_last=False,
+    )
+    val_loader = DataLoader(
+        dataset=val_data,
+        batch_size=batch_size,
+        shuffle=False,
         drop_last=False,
     )
 
@@ -72,14 +80,14 @@ def main(args, cfg):
     model.train()
     model.to(device)
     for epoch in range(start_epoch, epochs):
-        for step, batch in enumerate(tqdm(dataloader)):
+        for step, batch in enumerate(tqdm(train_loader)):
             batch[Queries.IMG] = preprocessor(batch[Queries.IMG])
-            step_idx = step + epoch * len(dataloader)
+            step_idx = step + epoch * len(train_loader)
             optimizer.zero_grad()
-            res, loss, acc = model(batch, step_idx, 'train')
-            summary.add_scalar(f"resnet_loss", loss.item(), step_idx)
-            summary.add_scalar(f"acc", acc.item(), step_idx)
-            loss.backward()
+            res_dict = model(batch, step_idx, 'train')
+            summary.add_scalar(f"resnet_loss", res_dict[Queries.LOSS].item(), step_idx)
+            summary.add_scalar(f"acc", res_dict[Queries.ACC].item(), step_idx)
+            res_dict[Queries.LOSS].backward()
             if cfg.TRAIN.GRAD_CLIP_ENABLED:
                 clip_gradient(optimizer, cfg.TRAIN.GRAD_CLIP.NORM, cfg.TRAIN.GRAD_CLIP.TYPE)
             optimizer.step()
@@ -93,6 +101,16 @@ def main(args, cfg):
             }
             checkpoint_path = os.path.join(exp_dir, f'checkpoint_{epoch}.pth.tar')
             torch.save(checkpoint, checkpoint_path)
+    model.eval()
+    valbar = tqdm(val_loader)
+    accum = 0
+    for step, batch in enumerate(valbar):
+        batch[Queries.IMG] = preprocessor(batch[Queries.IMG])
+        label = batch[Queries.LABEL]
+        pred = model(batch, step, 'test')
+        pred = torch.argmax(pred, dim=1)
+        accum += (pred == label).sum().item()
+    logger.info(f"Training finished. Test accuracy = {accum / len(val_data)}")
 
     summary.close()
 
