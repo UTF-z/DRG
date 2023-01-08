@@ -5,6 +5,43 @@ from lib.const import Queries
 import torch.nn.functional as F
 import torch
 
+def multiclass_focal_loss(
+    inputs: torch.Tensor,  # TENSOR (B x N, C)
+    targets: torch.Tensor,  # TENSOR (B x N, C)
+    masks: torch.Tensor,  # TENSOR (B x N, 1)
+    alpha=None,  # TENSOR (C, 1)
+    gamma: float = 2,
+    reduction: str = "none",
+):
+    if masks.sum().detach().cpu().item() != 0:
+        n_classes = inputs.shape[1]
+        logit = F.softmax(inputs, dim=1)  # TENSOR (B x N, C)
+        if alpha is None:
+            alpha = torch.ones((n_classes), requires_grad=False)
+
+        if alpha.device != inputs.device:
+            alpha = alpha.to(inputs.device)
+
+        epsilon = 1e-10
+        pt = torch.sum((targets * logit), dim=1, keepdim=True) + epsilon  # TENSOR (B x N, 1)
+        log_pt = pt.log()  # TENSOR (B x N, 1)
+
+        targets_idx = torch.argmax(targets, dim=1, keepdim=True).long()  # TENSOR (B x N, 1)
+        alpha = alpha[targets_idx]  # TENSOR ( B x N, 1)
+
+        focal_loss = -1 * alpha * (torch.pow((1 - pt), gamma) * log_pt)  # TENSOR (B x N, 1)
+        masked_focal_loss = focal_loss * masks  # TENSOR (B x N, 1)
+
+        if reduction == "mean":
+            loss = masked_focal_loss.sum() / masks.sum()
+        elif reduction == "sum":
+            loss = masked_focal_loss.sum()
+        else:
+            loss = masked_focal_loss
+
+        return loss
+    else:
+        return torch.Tensor([0.0]).float().to(inputs.device)
 
 class ResnetModel(nn.Module):
 
@@ -13,6 +50,7 @@ class ResnetModel(nn.Module):
         self.num_residuals = cfg.MODEL.NUM_RESIDUALS
         self.classes = cfg.MODEL.CLASSES
         self.preprocessor = None
+        self.alpha = torch.tensor(cfg.MODEL.ALPHA)
         self.resnet = ResNet(BasicBlock,
                              self.num_residuals,
                              self.classes,
@@ -63,7 +101,12 @@ class ResnetModel(nn.Module):
         return resnet_res
 
     def compute_loss(self, res, labels):
-        return F.cross_entropy(res, labels)
+        mask = torch.ones_like(res)
+        flabels = torch.zeros_like(res)
+        flabels = torch.scatter(flabels, 1, labels.unsqueeze(1), 1)
+        loss = multiclass_focal_loss(res, flabels, mask, alpha=self.alpha, reduction='sum')
+        # loss = F.cross_entropy(res, labels)
+        return loss
 
     @torch.no_grad()
     def compute_acc(self, resnet_res, labels) -> torch.Tensor:

@@ -2,7 +2,9 @@ import sys
 sys.path.append('.')
 from lib.dataset.DRGrading import DRGrading
 from lib.models.resnetModel import ResnetModel
+from lib.metrics.kappa import quadratic_weighted_kappa
 import torch
+import numpy as np
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 import cv2, os
@@ -103,14 +105,20 @@ def main(args, cfg):
             torch.save(checkpoint, checkpoint_path)
     model.eval()
     valbar = tqdm(val_loader)
-    accum = 0
+    acc = 0
+    total_pred = []
+    total_gt = []
     for step, batch in enumerate(valbar):
         batch[Queries.IMG] = preprocessor(batch[Queries.IMG])
         label = batch[Queries.LABEL]
         pred = model(batch, step, 'test')
         pred = torch.argmax(pred, dim=1)
-        accum += (pred == label).sum().item()
-    logger.info(f"Training finished. Test accuracy = {accum / len(val_data)}")
+        total_pred = np.append(total_pred, pred.cpu().numpy(), axis=0)
+        total_gt = np.append(total_gt, label.cpu().numpy(), axis=0)
+    print(total_pred, total_gt)
+    acc = (total_gt == total_pred).sum() / len(total_gt)
+    kappa = quadratic_weighted_kappa(total_gt, total_pred)
+    logger.info(f"Training finished. Test accuracy = {acc}, kappa = {kappa}")
 
     summary.close()
 

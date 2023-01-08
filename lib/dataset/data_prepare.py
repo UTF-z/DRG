@@ -11,6 +11,7 @@ from lib.const import Queries
 from lib.preprocess.ButterworthHighPassFilter import BHF
 from lib.preprocess.HighPassFilter import HPF
 from torch.utils.data import Dataset
+from matplotlib import pyplot
 import pickle
 
 def ButterworthHighPassFilter(image, d=20, n=1):
@@ -52,7 +53,47 @@ def GaussianNoise(img):
     img = skimage.util.random_noise(img, mode='gaussian')
     return img
 
-processings = [ButterworthHighPassFilter, HistEqualizer, GaussianBlur, GaussianNoise]
+def translate(img, shift=10, direction='right', roll=True): 
+    assert direction in ['right', 'left', 'down', 'up'], 'Directions should be top|up|left|right' 
+    img = img.copy() 
+    if direction == 'right': 
+        right_slice = img[:, -shift:].copy() 
+        img[:, shift:] = img[:, :-shift] 
+        if roll: 
+            img[:,:shift] = np.fliplr(right_slice) 
+    if direction == 'left': 
+        left_slice = img[:, :shift].copy() 
+        img[:, :-shift] = img[:, shift:] 
+        if roll: 
+            img[:, -shift:] = left_slice 
+    if direction == 'down': 
+        down_slice = img[-shift:, :].copy() 
+        img[shift:, :] = img[:-shift,:] 
+        if roll: 
+            img[:shift, :] = down_slice 
+    if direction == 'up': 
+        upper_slice = img[:shift, :].copy() 
+        img[:-shift, :] = img[shift:, :] 
+        if roll: 
+            img[-shift:,:] = upper_slice 
+
+def make_translate(shift, direction, roll):
+    def trans(img):
+        return translate(img, shift, direction, roll)
+    return trans
+
+def flip_img(img, mode='ud'): 
+    if mode == 'ud':
+        return np.flipud(img)
+    elif mode == 'lr':
+        return np.fliplr(img)
+
+def make_flip(mode):
+    def flip(img):
+        return flip_img(img, mode)
+    return flip
+
+processings = [GaussianNoise, make_flip('lr'), make_flip('ud'), make_translate(20, 'left', False)]
 
 class DataAugmentation:
 
@@ -131,6 +172,14 @@ class DataAugmentation:
         imgs = imgs[random_idx]
         labels = labels[random_idx]
         return (imgs, labels)
+    
+    def vis_process(self, process, num=2):
+        idx = np.random.choice(len(self.imgs), num, replace=False)
+        imgs = list(self.imgs[idx])
+        processed_imgs = [process(img) for img in imgs]
+        for img in processed_imgs:
+            pyplot.imshow(img)
+
 
 
 if __name__ == '__main__':
@@ -138,6 +187,7 @@ if __name__ == '__main__':
     img_dir = 'assets/images/train'
     target_dir = 'assets/DRG_data'
     data_augmentation = DataAugmentation(gt_dir, img_dir, target_dir)
-    data_augmentation.split(train_val_ratio=3)
+    # data_augmentation.split(train_val_ratio=3)
+    DataAugmentation.vis_process(make_translate(20, 'right', True), 2)
         
 

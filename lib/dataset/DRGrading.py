@@ -23,6 +23,8 @@ class DRGrading(Dataset):
         with open(data_path, 'rb') as f:
             self.imgs, self.labels = pickle.load(f)
         assert len(self.imgs) == len(self.labels)
+        f, s, t = (self.labels == 0).sum(), (self.labels == 1).sum(), (self.labels == 2).sum()
+        print(f, s, t)
         logger.info(f'Dataset successfully loaded! Total length: {len(self.imgs)}')
 
     def set_device(self, device):
