@@ -109,13 +109,15 @@ def make_flip(mode):
     return flip
 
 
-processings = [GaussianNoise, 
-               make_flip('lr'), 
-               make_flip('ud'), 
-               make_translate(20, 'left', False),
-               make_translate(20, 'right', False),
-               make_translate(20, 'up', False),
-               make_translate(20, 'down', False)]
+processings = [
+    # GaussianNoise,
+    # make_flip('lr'),
+    # make_flip('ud'),
+    # make_translate(20, 'left', False),
+    # make_translate(20, 'right', False),
+    make_translate(20, 'up', False),
+    make_translate(20, 'down', False)
+]
 
 
 class DataAugmentation:
@@ -174,14 +176,15 @@ class DataAugmentation:
         val_img = val_img[perm_val]
         val_label = val_label[perm_val]
         train_data, val_data = (train_img, train_label), (val_img, val_label)
-        train_data = self.augment(train_data)
         os.makedirs(self.target_dir, exist_ok=True)
         with open(os.path.join(self.target_dir, "train.pkl"), 'wb') as f:
             pickle.dump(train_data, f)
         with open(os.path.join(self.target_dir, "val.pkl"), 'wb') as f:
             pickle.dump(val_data, f)
 
-    def augment(self, data):
+    def augment(self, in_path, out_path):
+        with open(in_path, 'rb') as f:
+            data = pickle.load(f)
         imgs = data[0]
         labels = data[1]
         new_imgs = copy.deepcopy(imgs)
@@ -196,7 +199,9 @@ class DataAugmentation:
         random_idx = np.random.permutation(len(new_labels))
         imgs = new_imgs[random_idx]
         labels = new_labels[random_idx]
-        return (imgs, labels)
+        data_aug = (imgs, labels)
+        with open(out_path, 'wb') as f:
+            pickle.dump(data_aug, f)
 
     def vis_process(self, process, num=2):
         idx = np.random.choice(len(self.imgs), num, replace=False)
@@ -214,3 +219,4 @@ if __name__ == '__main__':
     data_augmentation = DataAugmentation(gt_dir, img_dir, target_dir)
     # data_augmentation.split(train_val_ratio=3)
     # data_augmentation.vis_process(make_translate(20, 'right', True), 2)
+    data_augmentation.augment(r'assets/DRG_data/train.pkl', r'assets/DRG_data/train_aug_trans_ud.pkl')
