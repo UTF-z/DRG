@@ -1,10 +1,12 @@
 import sys, os
+
 sys.path.append('.')
 import pickle
 import cv2
 import pandas
 import skimage
 import numpy as np
+import copy
 from tqdm import tqdm
 from lib.utils.logger import logger
 from lib.const import Queries
@@ -13,6 +15,7 @@ from lib.preprocess.HighPassFilter import HPF
 from torch.utils.data import Dataset
 from matplotlib import pyplot
 import pickle
+
 
 def ButterworthHighPassFilter(image, d=20, n=1):
 
@@ -41,13 +44,16 @@ def ButterworthHighPassFilter(image, d=20, n=1):
     new_img = np.abs(np.fft.ifft2(np.fft.ifftshift(fshift * d_matrix)))
     return new_img
 
+
 def HistEqualizer(img):
     img = cv2.equalizeHist(img)
     return img
 
+
 def GaussianBlur(img):
     img = cv2.GaussianBlur(img, (5, 5), 9)
     return img
+
 
 def GaussianNoise(img):
     img = skimage.util.random_noise(img, mode='gaussian')
@@ -95,6 +101,7 @@ def make_flip(mode):
 
 processings = [GaussianNoise, make_flip('lr'), make_flip('ud'), make_translate(20, 'left', False)]
 
+
 class DataAugmentation:
 
     def __init__(self, gt_dir, img_dir, target_dir):
@@ -113,7 +120,7 @@ class DataAugmentation:
             self.imgs.append(img)
         self.labels = np.array(self.gtfile['DR grade'])
         self.imgs = np.array(self.imgs)
-    
+
     def split(self, train_val_ratio=3):
         idx_0 = self.labels == 0
         idx_1 = self.labels == 1
@@ -150,27 +157,29 @@ class DataAugmentation:
         train_label = train_label[perm_train]
         val_img = val_img[perm_val]
         val_label = val_label[perm_val]
-        train_data, val_data =  (train_img, train_label), (val_img, val_label)
+        train_data, val_data = (train_img, train_label), (val_img, val_label)
         train_data = self.augment(train_data)
         os.makedirs(self.target_dir, exist_ok=True)
         with open(os.path.join(self.target_dir, "train.pkl"), 'wb') as f:
             pickle.dump(train_data, f)
         with open(os.path.join(self.target_dir, "val.pkl"), 'wb') as f:
             pickle.dump(val_data, f)
-    
+
     def augment(self, data):
         imgs = data[0]
         labels = data[1]
+        new_imgs = copy.deepcopy(imgs)
+        new_labels = copy.deepcopy(labels)
         for i in tqdm(range(len(imgs))):
             img, label = imgs[i], labels[i]
             for proc in processings:
                 img = img.astype(np.uint8)
                 img = proc(img)
-                np.append(imgs, [img], axis=0)
-                np.append(labels, [label], axis=0)
-        random_idx = np.random.permutation(len(imgs))
-        imgs = imgs[random_idx]
-        labels = labels[random_idx]
+                new_imgs = np.append(new_imgs, [img], axis=0)
+                new_labels = np.append(new_labels, [label], axis=0)
+        random_idx = np.random.permutation(len(new_labels))
+        imgs = new_imgs[random_idx]
+        labels = new_labels[random_idx]
         return (imgs, labels)
     
     def vis_process(self, process, num=2):
