@@ -125,8 +125,8 @@ class DataAugmentation:
             for proc in processings:
                 img = img.astype(np.uint8)
                 img = proc(img)
-                np.append(imgs, img)
-                np.append(labels, label)
+                np.append(imgs, [img], axis=0)
+                np.append(labels, [label], axis=0)
         random_idx = np.random.permutation(len(imgs))
         imgs = imgs[random_idx]
         labels = labels[random_idx]
