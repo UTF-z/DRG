@@ -208,6 +208,7 @@ def test(args, cfg):
         name = batch[Queries.NAME]
         pred_prob = model(batch, step, 'test')
         pred_class = torch.argmax(pred_prob, dim=1)
+        pred_prob = F.softmax(pred_prob, dim=1)
         total_pred_prob.append(pred_prob.cpu().numpy())
         total_pred_class.append(pred_class.cpu().numpy())
         total_name.append(name)
