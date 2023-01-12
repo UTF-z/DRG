@@ -1,9 +1,11 @@
 from yacs.config import CfgNode as CN
-from lib.models.resnet import ResNet, BasicBlock, BottleNeck
+from lib.models.resnet import ResNet, BasicBlock, AttentionBlock
 import torch.nn as nn
 from lib.const import Queries
 import torch.nn.functional as F
 import torch
+from lib.metrics.kappa import quadratic_weighted_kappa
+from lib.utils.logger import DRGLogger
 
 def multiclass_focal_loss(
     inputs: torch.Tensor,  # TENSOR (B x N, C)
@@ -50,12 +52,28 @@ class ResnetModel(nn.Module):
         self.num_residuals = cfg.MODEL.NUM_RESIDUALS
         self.classes = cfg.MODEL.CLASSES
         self.preprocessor = None
-        self.alpha = torch.tensor(cfg.MODEL.ALPHA)
-        self.resnet = ResNet(BasicBlock,
-                             self.num_residuals,
-                             self.classes,
-                             include_top=True,
-                             input_channel=len(cfg.PREPROCESS.TYPES) + 1)
+        self.attention = cfg.MODEL.ATTENTION
+        if cfg.LOSS.TYPE == 'CE':
+            self.loss_function = self.cross_entropy_loss
+            DRGLogger.info('LOSS: Using Cross Entropy Loss')
+        elif cfg.LOSS.TYPE == 'FOCAL':
+            self.loss_function = self.focal_loss
+            self.alpha = torch.tensor(cfg.LOSS.ALPHA)
+            DRGLogger.info('LOSS: Using Focal Loss')
+        if not self.attention:
+            DRGLogger.info('ATTENTION: No Self Attention')
+            self.resnet = ResNet(BasicBlock,
+                                self.num_residuals,
+                                self.classes,
+                                include_top=True,
+                                input_channel=cfg.DATASET.IN_CHANNEL)
+        else:
+            DRGLogger.info('ATTENTION: Using Self Attention')
+            self.resnet = ResNet(AttentionBlock,
+                                 self.num_residuals,
+                                 self.classes,
+                                 include_top=True,
+                                 input_channel=cfg.DATASET.IN_CHANNEL)
 
     def forward(self, batch, step_idx, mode):
         if mode == "train":
@@ -72,10 +90,11 @@ class ResnetModel(nn.Module):
         resnet_res = self.resnet(imgs)
         resnet_loss = self.compute_loss(resnet_res, labels)
         acc = self.compute_acc(resnet_res, labels)
+        # kappa = self.compute_kappa(resnet_res, labels)
         res_dict = {
             Queries.RES: resnet_res,
             Queries.LOSS: resnet_loss,
-            Queries.ACC: acc
+            Queries.ACC: acc,
         }
         return res_dict
 
@@ -96,21 +115,34 @@ class ResnetModel(nn.Module):
     @torch.no_grad()
     def test_step(self, batch, step_idx):
         imgs = batch[Queries.IMG]
-        labels = batch[Queries.LABEL]
         resnet_res = self.resnet(imgs)
         return resnet_res
-
+    
     def compute_loss(self, res, labels):
-        mask = torch.ones_like(res)
-        flabels = torch.zeros_like(res)
-        flabels = torch.scatter(flabels, 1, labels.unsqueeze(1), 1)
-        loss = multiclass_focal_loss(res, flabels, mask, alpha=self.alpha, reduction='sum')
-        # loss = F.cross_entropy(res, labels)
+        loss = self.loss_function(res, labels)
         return loss
-
+    
+    def cross_entropy_loss(self, pred, gt):
+        loss = F.cross_entropy(pred, gt)
+        return loss
+    
+    def focal_loss(self, pred, gt):
+        mask = torch.ones_like(pred)
+        flabels = torch.zeros_like(pred)
+        flabels = torch.scatter(flabels, 1, gt.unsqueeze(1), 1)
+        loss = multiclass_focal_loss(pred, flabels, mask, alpha=self.alpha, reduction='mean')
+        return loss
+    
     @torch.no_grad()
     def compute_acc(self, resnet_res, labels) -> torch.Tensor:
         class_res = torch.argmax(resnet_res, dim=1)
         acc = (class_res == labels).sum()
         acc = acc.true_divide(len(labels))
         return acc
+
+    @torch.no_grad()
+    def compute_kappa(self, resnet_res, labels) -> torch.Tensor:
+        class_res = (torch.argmax(resnet_res, dim=1)).cpu().numpy()
+        labels = labels.cpu().numpy()
+        kappa = quadratic_weighted_kappa(labels, class_res)
+        return kappa

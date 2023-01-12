@@ -29,32 +29,76 @@ class BasicBlock(nn.Module):
         return self.relu(Y + identity)
 
 
-class BottleNeck(nn.Module):
-    expansion = 4
+class AttentionBlock(nn.Module):
+    expansion = 1
 
     def __init__(self, in_channel, out_channel, stride=1, downsample=None):
-        super(BottleNeck, self).__init__()
-        self.conv1 = nn.Conv2d(in_channel, out_channel, kernel_size=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(out_channel)  
-        self.conv2 = nn.Conv2d(out_channel, out_channel, kernel_size=3, stride=stride, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(out_channel)
-        self.conv3 = nn.Conv2d(out_channel, out_channel * self.expansion, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(out_channel * self.expansion)  
+        super(AttentionBlock, self).__init__()
 
+        self.conv1 = nn.Conv2d(in_channel, out_channel, kernel_size=3, padding=1, stride=stride, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_channel)  
+        self.conv2 = nn.Conv2d(out_channel, out_channel, kernel_size=3, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channel)
+        self.attention = CBAM(out_channel)
         self.downsample = downsample
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, X):
         identity = X
-
         Y = self.relu(self.bn1(self.conv1(X)))
-        Y = self.relu(self.bn2(self.conv2(Y)))
-        Y = self.bn3(self.conv3(Y))
+        Y = self.bn2(self.conv2(Y))
+        Y = self.attention(Y)
 
         if self.downsample is not None:  
             identity = self.downsample(X)
 
         return self.relu(Y + identity)
+
+
+class ChannelAttentionModule(nn.Module):
+
+    def __init__(self, channel, ratio=16):
+        super(ChannelAttentionModule, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+
+        self.shared_MLP = nn.Sequential(
+        nn.Conv2d(channel, channel // ratio, 1, bias=False),
+        nn.ReLU(),
+        nn.Conv2d(channel // ratio, channel, 1, bias=False)
+        )
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        avgout = self.shared_MLP(self.avg_pool(x))
+        maxout = self.shared_MLP(self.max_pool(x))
+        return self.sigmoid(avgout + maxout)
+
+
+class SpatialAttentionModule(nn.Module):
+    def __init__(self):
+        super(SpatialAttentionModule, self).__init__()
+        self.conv2d = nn.Conv2d(in_channels=2, out_channels=1, kernel_size=7, stride=1, padding=3)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        avgout = torch.mean(x, dim=1, keepdim=True)
+        maxout, _ = torch.max(x, dim=1, keepdim=True)
+        out = torch.cat([avgout, maxout], dim=1)
+        out = self.sigmoid(self.conv2d(out))
+        return out
+
+
+class CBAM(nn.Module):
+    def __init__(self, channel):
+        super(CBAM, self).__init__()
+        self.channel_attention = ChannelAttentionModule(channel)
+        self.spatial_attention = SpatialAttentionModule()
+
+    def forward(self, x):
+        out = self.channel_attention(x) * x
+        out = self.spatial_attention(out) * out
+        return out
 
 
 class ResNet(nn.Module):

@@ -129,20 +129,29 @@ class _Preprocessor(nn.Module):
         return result
 
 
-class Preprocessor(nn.Module):
+class DummyPreprocessor(nn.Module):
 
     def __init__(self, cfg):
-        super(Preprocessor, self).__init__()
+        super(DummyPreprocessor, self).__init__()
 
     def forward(self, img):
         return img
 
+class NormalizePreprocessor(nn.Module):
+
+    def __init__(self, cfg, mean, std):
+        super(NormalizePreprocessor, self).__init__()
+        self.mean = mean
+        self.std = std
+
+    def forward(self, img):
+        return (img - self.mean) / self.std
 
 if __name__ == "__main__":
     cfg = get_config('config/drg_baseline.yml')
     img = cv2.imread("assets/images/train/001.png", cv2.IMREAD_GRAYSCALE)
     img = torch.from_numpy(img).unsqueeze(0).unsqueeze(0).to(torch.float64)
-    pre = Preprocessor(cfg)
+    pre = DummyPreprocessor(cfg)
     out = pre.forward(img)
     for i in range(out.shape[1]):
         cv2.imshow('test', out[0, i, :, :].detach().numpy())

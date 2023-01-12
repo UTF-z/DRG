@@ -2,7 +2,7 @@ from argparse import Namespace
 
 from yacs.config import CfgNode as CN
 
-from .utils.logger import logger
+from .utils.logger import DRGLogger
 
 _C = CN(new_allowed=True)
 
@@ -58,15 +58,15 @@ def get_config(config_file: str, arg: Namespace = None, merge: bool = True) -> C
     if arg is not None:
         # if arg.batch_size is given, it always have higher priority
         if arg.batch_size is not None:
-            logger.warning(f"cfg's batch_size {cfg.TRAIN.BATCH_SIZE} reset to arg.batch_size: {arg.batch_size}")
+            DRGLogger.warning(f"cfg's batch_size {cfg.TRAIN.BATCH_SIZE} reset to arg.batch_size: {arg.batch_size}")
             cfg.TRAIN.BATCH_SIZE = arg.batch_size
         else:
-            logger.info(f"arg.batch_size is None, using cfg's batch_size: {cfg.TRAIN.BATCH_SIZE}")
+            DRGLogger.info(f"arg.batch_size is None, using cfg's batch_size: {cfg.TRAIN.BATCH_SIZE}")
             arg.batch_size = cfg.TRAIN.BATCH_SIZE
 
         # if arg.reload is given, it always have higher priority.
         if arg.reload is not None:
-            logger.warning(f"cfg MODEL's pretrained {cfg.MODEL.PRETRAINED} reset to arg.reload: {arg.reload}")
+            DRGLogger.warning(f"cfg MODEL's pretrained {cfg.MODEL.PRETRAINED} reset to arg.reload: {arg.reload}")
             cfg.MODEL.PRETRAINED = arg.reload
 
     cfg.freeze()

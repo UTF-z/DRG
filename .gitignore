@@ -3,7 +3,9 @@ assets*
 *.pyc
 events*
 .vscode
-*.txt
 *.yml
 *.pt
 *exp*
+**/tmp/**
+*.out
+*.err

@@ -40,8 +40,8 @@ class Logging:
         return logger
 
 
-logger = Logging().logger()
+DRGLogger = Logging().logger()
 
 if __name__ == '__main__':
     init_logger = Logging()
-    logger.warning('test')
+    DRGLogger.warning('test')

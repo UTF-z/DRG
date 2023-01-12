@@ -9,15 +9,15 @@ import time
 import argparse
 from yacs.config import CfgNode as CN
 from lib.config import get_config
-from lib.utils.logger import logger
+from lib.utils.logger import DRGLogger
 from torch.nn.utils import clip_grad
-from lib.preprocess.preprocess import Preprocessor
+from lib.preprocess.preprocess import DummyPreprocessor
 from lib.const import Queries
 
 
 def main(args, cfg):
     device = 'cuda:0'
-    preprocessor = Preprocessor(cfg).to(device)
+    preprocessor = DummyPreprocessor(cfg).to(device)
     drg_data = DRGrading('assets/images', 'assets/gts', cfg.DATASET.SPLIT, cfg.DATASET.MODE, cfg.DATASET.AMOUNT)
     drg_data.set_device(device)
     epochs = cfg.TRAIN.EPOCHS
@@ -35,7 +35,7 @@ def main(args, cfg):
     model = ResnetModel(cfg)
     checkpoint = torch.load(args.load)
     model.load_state_dict(checkpoint['model'])
-    logger.info(f"the model has {sum(p.numel() for p in model.parameters()) * 4 / (1024 * 1024)} M params")
+    DRGLogger.info(f"the model has {sum(p.numel() for p in model.parameters()) * 4 / (1024 * 1024)} M params")
     model.eval()
     model.to(device)
     total_loss = 0.0
@@ -51,8 +51,8 @@ def main(args, cfg):
 
     avg_loss = total_loss / steps
     avg_acc = total_acc / len(drg_data)
-    logger.warning(f"average acc is {avg_acc}")
-    logger.warning(f"average loss is {avg_loss}")
+    DRGLogger.warning(f"average acc is {avg_acc}")
+    DRGLogger.warning(f"average loss is {avg_loss}")
 
 
 if __name__ == '__main__':
