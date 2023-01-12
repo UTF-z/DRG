@@ -218,12 +218,13 @@ def test(args, cfg):
     P0 = total_pred_prob[:, 0]
     P1 = total_pred_prob[:, 1]
     P2 = total_pred_prob[:, 2]
+    print(len(total_name), len(total_pred_class), len(P0), len(P1), len(P2))
     test_result = {
         'case': total_name,
         'class': total_pred_class,
-        'P0': pred_prob[:, 0],
-        'P1': pred_prob[:, 1],
-        'P2': pred_prob[:, 2]
+        'P0': P0,
+        'P1': P1,
+        'P2': P2
     }
     test_name = os.path.join(test_dir, 'result.csv')
     dataframe = pd.DataFrame(test_result)
